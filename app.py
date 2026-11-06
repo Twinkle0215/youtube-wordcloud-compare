@@ -5,19 +5,22 @@ from googleapiclient.errors import HttpError
 import streamlit as st
 from wordcloud import WordCloud
 
-# 페이지 레이아웃 및 제목 설정
 st.set_page_config(
     page_title="유튜브 동영상 2개 워드클라우드 비교 분석기", layout="wide"
 )
 st.title("📊 유튜브 동영상 2개 댓글 워드클라우드 비교 분석기")
+st.caption("두 유튜브 링크를 입력하면 영상과 댓글 워드클라우드를 비교해 드립니다.")
 
-# 사이드바에서 API 키 입력 받기
-with st.sidebar:
-    st.header("🔑 설정")
-    api_key = st.text_input("YouTube API Key 입력", type="password")
-    st.caption("Colab Secrets의 YOUTUBE_API_KEY를 입력해주세요.")
+# Streamlit Secrets에서 API 키 자동 불러오기
+try:
+    API_KEY = st.secrets["YOUTUBE_API_KEY"]
+except Exception:
+    st.error(
+        "API 키가 설정되지 않았습니다. Streamlit App Settings -> Secrets 설정을 확인해주세요."
+    )
+    st.stop()
 
-# 2개의 유튜브 링크 입력 창 (나란히 배치)
+# 2개의 유튜브 링크 입력 창
 col_input1, col_input2 = st.columns(2)
 
 with col_input1:
@@ -26,7 +29,10 @@ with col_input1:
         value="https://www.youtube.com/watch?v=j-JunRZuBkc",
     )
 with col_input2:
-    url2 = st.text_input("두 번째 동영상 링크", value="")
+    url2 = st.text_input(
+        "두 번째 동영상 링크",
+        value="https://www.youtube.com/watch?v=25JEQqgv5I4",
+    )
 
 
 def extract_video_id(url):
@@ -37,7 +43,7 @@ def extract_video_id(url):
 def get_comments_and_info(video_url, youtube_client):
     video_id = extract_video_id(video_url)
 
-    # 영상 정보(제목) 가져오기
+    # 영상 제목 가져오기
     video_res = (
         youtube_client.videos().list(part="snippet", id=video_id).execute()
     )
@@ -77,23 +83,20 @@ def get_comments_and_info(video_url, youtube_client):
 
 # 분석 시작 버튼
 if st.button("🚀 두 영상 비교 분석 시작", use_container_width=True):
-    if not api_key:
-        st.error("좌측 사이드바에 YouTube API Key를 입력해주세요.")
-    elif not url1 or not url2:
+    if not url1 or not url2:
         st.warning("유튜브 동영상 링크 2개를 모두 입력해주세요.")
     else:
         try:
-            youtube = build("youtube", "v3", developerKey=api_key)
+            youtube = build("youtube", "v3", developerKey=API_KEY)
 
-            with st.spinner("댓글 데이터를 수집하고 시각화하는 중입니다..."):
+            with st.spinner("댓글 데이터를 수집하고 워드클라우드를 생성 중입니다..."):
                 title1, comments1 = get_comments_and_info(url1, youtube)
                 title2, comments2 = get_comments_and_info(url2, youtube)
 
             if comments1 and comments2:
-                # 2열 레이아웃으로 결과 화면 구성
                 col1, col2 = st.columns(2)
 
-                # 첫 번째 영상 결과
+                # 첫 번째 영상
                 with col1:
                     st.subheader("🎬 동영상 1")
                     st.video(url1)
@@ -114,7 +117,7 @@ if st.button("🚀 두 영상 비교 분석 시작", use_container_width=True):
                     ax1.axis("off")
                     st.pyplot(fig1)
 
-                # 두 번째 영상 결과
+                # 두 번째 영상
                 with col2:
                     st.subheader("🎬 동영상 2")
                     st.video(url2)
@@ -136,17 +139,17 @@ if st.button("🚀 두 영상 비교 분석 시작", use_container_width=True):
                     st.pyplot(fig2)
 
                 st.divider()
-                st.subheader("💡 종합 비교 요약")
+                st.subheader("💡 분석 결과 요약")
                 st.write(
-                    f"- **영상 1 수집 댓글 수:** {len(comments1)}개 | 주요 키워드 기반 반응 시각화 완료"
+                    f"- **영상 1 (`{title1}`):** 총 {len(comments1)}개 댓글 수집 완료"
                 )
                 st.write(
-                    f"- **영상 2 수집 댓글 수:** {len(comments2)}개 | 주요 키워드 기반 반응 시각화 완료"
+                    f"- **영상 2 (`{title2}`):** 총 {len(comments2)}개 댓글 수집 완료"
                 )
 
             else:
                 st.error(
-                    "댓글을 가져올 수 없는 영상이 포함되어 있습니다 (댓글 비활성화 여부 확인)."
+                    "댓글을 가져올 수 없는 영상이 있습니다 (댓글 비활성화 여부 확인)."
                 )
 
         except HttpError as e:
